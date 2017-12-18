@@ -1,0 +1,196 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+#Ce notebook s'agit d'une ACP pour swh
+
+###Charger les données :
+on change l'index pour qu'il soit les noms puis on supprime cette variable:
+```{r}
+swh<-read.csv('data_acp_time-series-swh.csv',header = T)
+rownames(swh)<-swh$index
+swh$index<-NULL
+#str(swh) # donne 518 obs et 288 variables
+```
+###Charger les libraires : 
+```{r}
+library("FactoMineR")
+library("factoextra")
+library("qtlcharts")
+```
+
+##Corrélation entre les variables : on choisit que les variables numériques
+```{r}
+cor(swh)[1:5,1:5]
+```
+La table de corrélation montre l'existence de plusieurs variables qui sont corrélées entre eux. Ceci est une bonne nouvelle dans le sens où l'ACP nécessite que les variables soient corrélées afin d'extraire de l'information contenue dans l'inertie totale.
+
+On peut donc commencer l'analyse en composantes principales.
+
+##ACP 
+on va utiliser toutes  les variables quantitatives ( 288 variables) pour effectuer notre ACP. Ainsi que tous les individus (518 individus).
+```{r}
+res.pca=PCA(swh,graph=FALSE,scale.unit = FALSE)
+print(res.pca)
+```
+res.pca est un objet qui contient plusieurs  variables à analyser. Dans ce qui suit on va analyser chaque attribut de cette objet.
+```{r}
+eig.val<-get_eigenvalue(res.pca)
+head(eig.val) 
+```
+D'après les résultats ci-dessus, on peut conserver 2 axes principales vu qu'ils expliquent 83.50% de l'inertie totale contenue dans notre jeu de données. A noter qu'ici on n'a pas le droit d'utiliser le critère de Kaîser pour choisir le nombre d'axe à conserver, car les données ne sont pas normalisées. On préfére la normalisation dans le cas où les variables sont hétérogénes.
+
+
+===========================================================================================================================================
+Critére de Kaiser (1961) : est utilisé pour déterminer le nombre d'axes principaux à gardr après  l'ACP. Une valeur propre> 1===> la CP en question represente plus de variance par rappot à une seule variable d'origine. Ceci est valable que si les données sont normalisées.                            
+===========================================================================================================================================
+Afin de bien  justifier notre choix on peut fournir les diagrammes suivants :
+
+```{r}
+fviz_eig(res.pca,addlabels=T,ylim=c(0,50))
+```
+
+On peut, à partir du graph, se limiter à 2 composantes principales, soit 83.50% de la variance totale. Après ces deux axes, la variance cumulée ne change pas beaucoup.
+
+
+
+
+###Etude des variables :
+Corrélation avec les CPs, Qualité de représentation, contributions aux CPs et cercles de corrélations.
+
+#### Decription des dimensions : 
+dimdesc: est utilisée pour identifier les variables les plus  significativement associées avec une CP donnée.
+
+```{r}
+res.desc<-dimdesc(res.pca, axes=c(1,2), proba=0.05)
+print('=====pour Dim.1======')
+res.desc$Dim.1$quanti[1:5,]
+print('=====pour Dim.2======')
+res.desc$Dim.2$quanti[1:5,]
+tail(res.desc$Dim.2$quanti)
+
+```
+
+Conclusion :
+- Les variables les plus corrélées  avec la Dim.1 ( CP1) sont les mois suivantes :2011_2,2003_3,2002_3,2011_11,2012_11,2005_10,2013_12,2015_3,2002_1,2003_2==> Dim1 peut être interprété comme étant la moyenne de swh sur ces mois
+- Les variables les plus corrélées positivement  avec Dim.2 (CP2) sont les mois suivantes : 1998_4,2014_2,1996_1 et 2001_3.
+- Les variables les plus corrélées négativement avec Dim.2 sont les mois suivantes : 2007_11,2012_2,2004_11,2000_3 et 2001_11
+
+Rq: ce n'est pas une vraie moyenne ( on verra pourquoi à l'aide des résultats suivants).
+
+####a.2 information générales sur les variables  :
+
+
+```{r}
+var<- get_pca_var(res.pca)
+print('============ Coordonnées des dim :===========')
+head(var$coord)
+print('=========== Qualité de représentation : ========')
+head(var$cos2)
+print('========= Contributions des variables :==========')
+head(var$contrib)
+
+
+
+```
+
+Quelques remarques à partir des tableaux ci-dessus :
+Dim.1= 1.56*X1993_1 + 0.65*X1993_10 +... ( voilà pourquoi ce n'est pas une moyenne)
+de même pour les autres.
+
+####a.3 : Les cercles de corrélations : 
+ci-dessous on fournit un cercle avec un gradient de couleurs.
+```{r}
+fviz_pca_var(res.pca, col.var="cos2",gradient.cols=c("#00AFBB","#E7B800","#FC4E07"),repel=T,select.var = list(cos2=0.90))
+```
+
+->on représente les variables par leurs corrélation sur un cercle :
+-> Les variables positivement corréles sont regroupé par quart de cercle
+-> Les variables négativement corrélées sont positionnées sur les côtés opposés de l'origine du cercle( quadrant opposés)
+-> La distance entre les variables et l'origine mesure la qualité de représentation des variables.
+-> Et donc les variables les plus loin de l'origine sont les bien représentés par l'ACP
+
+
+Rq: Comme représenté sur la figure ci-dessus, les mois les plus bien représenté sont : 2011_2,1997_3,2004_12,2002_1 et 2014_2.
+
+
+
+####a.4 : Contributions des variables aux axes principaux
+Pour la dim.1 : 
+```{r}
+fviz_contrib(res.pca,choice="var", axes=1,top=30)
+```
+
+On voir que les mois 1997_2, 2015_1, 1993_1,2011_2 contribuent le plus à la dimension 1.
+
+Pour la dim.2 : 
+```{r}
+fviz_contrib(res.pca,choice="var", axes=2,top=30)
+```
+On voir que 2014_2,1999_2,2001_11,1996_1 et 1993_2 sont les mois les plus contributifs à la dimension 2.
+RQ :
+La ligne en pointillé rouge indique la contribution en moyenne attendue.
+si une variable dépasse ce seuil ==> elle est importante pour contribuer à la  composante. 
+
+Notez que la contribution totale à PC1 et PC2 peut être obtenu avec le code R suivant:
+```{r}
+fviz_contrib(res.pca,choice="var", axes=1:2,top=30)
+```
+Généralement, les mois les plus contributifs sont les mois de l'hiver.
+###b. Etude des individus :
+
+```{r}
+ind<-get_pca_ind(res.pca)
+print('========= Coordonnées des individus :===========')
+head(ind$coord)
+print('======= Qualité de représentation des individus:=======')
+head(ind$cos2)
+print('======== Contributions des individus :=======')
+head(ind$contrib)
+```
+On va utiliser des graphiques pour rapidement identifier les individus qui contribuent très bien à une telle Dimension principale.
+
+->Contribution totale des individus sur PC1 :
+```{r}
+fviz_contrib(res.pca,choice="ind", axes=1,top = 40)
+
+```
+Donc la région qui contribue le plus à la définiton du premier axe principale est la région comprise entre :  -4=<lon<=12  et 37=<lat<57.
+
+Cette région est : ...
+
+
+->Contribution totale des individus sur PC2 :
+```{r}
+fviz_contrib(res.pca,choice="ind", axes=2,top=40) 
+
+```
+Donc la région qui contribue le plus à la définiton du premier axe principale est la région comprise entre :  -17=<lon<=9  et 42=<lat<=64.
+
+Cette région est : ... 
+
+
+
+####b.2 Biplot
+```{r}
+fviz_pca_biplot(res.pca,repel=T,col.var="#2E9FDF",col.ind="#696969",geom.var = c("arrow"),geom.ind = c("point"),)
+
+```
+
+Pour raison de lisibilité, j'ai supprimé tous les texts. Donc la figure ne contient que la représentation des variables(les flèches en bleu) ainsi que la nuage des individus( les points en noires).
+
+Globalement  un biplot peut être interprété comme suit :
+->un individu qui se trouve du même côté d'une variable donnée a une valeur élevée pour cette variable
+->un individu qui se trouve sur le côté opposé d'une variable donnée a une   faible valeur pour cette variable.
+
+NB: il faut se méfier  des individus proches de l'origine : mal représentés, ou proches de la moyenne car ils sont mal représentés.  
+Commentaire pour notre jeu de données :
+
+- Pour le quart du cercle en haut à droite : ces couple lon/lat ( points noires) ont généralement de grandes valeurs de swh pendant ces mois qui sont sur le même quart.
+- Pour le quart du cercle en bas à gauche : ces couple lon/lat ont généralement des petites valeurs de swh pendant les mêmes mois que le cas précédent.
+- Pour le quart du cercle en bas à droite : ces couple lon/lat ( points noires) ont généralement de grandes valeurs de swh pendant ces mois qui sont sur le même quart.
+- Pour le quart du cercle en haut à gauche : ces couple lon/lat ont généralement des petites valeurs de swh pendant les mêmes mois que le cas précédent.
+
+Malheursement, à cause de la lisibilité du graph, on ne peut pas voir quels sont ces mois et les régions corresepondantes.
